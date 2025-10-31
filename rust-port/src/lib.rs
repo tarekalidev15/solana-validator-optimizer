@@ -7,6 +7,7 @@ pub mod system;
 pub mod blockchain;
 pub mod process_manager;
 pub mod real_optimizer;
+pub mod smart_contract;
 
 pub use config::*;
 pub use monitor::*;
