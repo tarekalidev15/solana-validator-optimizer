@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use colored::Colorize;
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{
@@ -22,6 +22,7 @@ use std::str::FromStr;
 /// - Cross-program invocation (CPI) efficiency
 pub struct SmartContractOptimizer {
     rpc_client: RpcClient,
+    #[allow(dead_code)]
     program_id: Option<Pubkey>,
 }
 
@@ -55,6 +56,7 @@ pub enum Priority {
     Low,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct OptimizationResult {
     pub cu_savings: u64,
@@ -64,6 +66,7 @@ pub struct OptimizationResult {
     pub after_score: f64,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct AccountAnalysis {
     pub pubkey: Pubkey,
@@ -78,11 +81,13 @@ pub struct AccountAnalysis {
 
 #[derive(Debug, Clone)]
 pub struct TransactionAnalysis {
+    #[allow(dead_code)]
     pub signature: String,
     pub cu_consumed: u64,
     pub accounts_accessed: Vec<Pubkey>,
     pub writable_accounts: Vec<Pubkey>,
     pub instruction_count: usize,
+    #[allow(dead_code)]
     pub log_messages: Vec<String>,
     pub cpi_depth: u32,
 }
@@ -161,6 +166,7 @@ impl SmartContractOptimizer {
     }
 
     /// Analyze compute unit usage for a program
+    #[allow(dead_code)]
     fn analyze_compute_units(&self, program_id: &Pubkey) -> Result<(u64, u64)> {
         let signatures = self.rpc_client.get_signatures_for_address(program_id)?;
 
@@ -327,6 +333,7 @@ impl SmartContractOptimizer {
     }
 
     /// Calculate optimization score (0-100)
+    #[allow(dead_code)]
     fn calculate_optimization_score(&self, avg_cu: f64, account_size: u64, cu_limit: u64) -> f64 {
         self.calculate_optimization_score_advanced(avg_cu, account_size, cu_limit, 0, &HashMap::new())
     }
@@ -649,12 +656,14 @@ pub mod compute_units {
     use super::*;
 
     /// Calculate optimal compute unit limit based on historical usage
+    #[allow(dead_code)]
     pub fn calculate_optimal_cu_limit(average_usage: u64) -> u64 {
         // Add 10% buffer to average usage
         (average_usage as f64 * 1.1) as u64
     }
 
     /// Generate compute budget instructions for optimal performance
+    #[allow(dead_code)]
     pub fn create_compute_budget_instructions(
         cu_limit: u32,
         cu_price: u64,
@@ -671,12 +680,14 @@ pub mod accounts {
     use super::*;
 
     /// Calculate rent-exempt minimum balance
+    #[allow(dead_code)]
     pub fn calculate_rent_exempt_balance(rpc_client: &RpcClient, data_len: usize) -> Result<u64> {
         let rent = rpc_client.get_minimum_balance_for_rent_exemption(data_len)?;
         Ok(rent)
     }
 
     /// Optimize account size by removing padding
+    #[allow(dead_code)]
     pub fn optimize_account_size(_current_size: usize, required_size: usize) -> usize {
         // Ensure 8-byte alignment for efficient access
         ((required_size + 7) / 8) * 8
@@ -688,6 +699,7 @@ pub mod batching {
     use super::*;
 
     /// Calculate optimal batch size based on network conditions
+    #[allow(dead_code)]
     pub fn calculate_optimal_batch_size(network_tps: u64, target_confirmation_time_ms: u64) -> usize {
         // Estimate based on network throughput and desired confirmation time
         let txs_per_ms = network_tps as f64 / 1000.0;
@@ -698,6 +710,7 @@ pub mod batching {
     }
 
     /// Group independent transactions for parallel execution
+    #[allow(dead_code)]
     pub fn group_independent_transactions(transactions: Vec<Transaction>) -> Vec<Vec<Transaction>> {
         // Simple grouping strategy: separate by account dependencies
         // In production, would analyze write locks to determine independence
