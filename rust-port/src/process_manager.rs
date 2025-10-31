@@ -511,20 +511,22 @@ impl Default for OptimizationState {
         Self {
             auto_optimize: true,
             last_optimization: std::time::Instant::now(),
+            // Initialize with zeros - will be populated with REAL metrics on first fetch
             current_metrics: ValidatorMetrics {
-                vote_success_rate: 85.0,
-                skip_rate: 12.0,
-                credits_earned: 180000,
-                vote_lag: 150,
-                cpu_usage: 50.0,
-                memory_usage: 50.0,
+                vote_success_rate: 0.0,  // Will be filled from blockchain
+                skip_rate: 0.0,           // Will be filled from blockchain
+                credits_earned: 0,        // Will be filled from blockchain
+                vote_lag: 0,              // Will be filled from blockchain
+                cpu_usage: 0.0,           // Will be filled from system
+                memory_usage: 0.0,        // Will be filled from system
             },
+            // Target thresholds for optimization decisions
             target_metrics: TargetMetrics {
-                min_vote_success: 95.0,
-                max_skip_rate: 5.0,
-                max_vote_lag: 50,
-                max_cpu_usage: 80.0,
-                max_memory_usage: 80.0,
+                min_vote_success: 95.0,   // Threshold for "good" performance
+                max_skip_rate: 5.0,       // Threshold for "good" performance
+                max_vote_lag: 50,         // Threshold for "good" performance
+                max_cpu_usage: 80.0,      // Threshold for resource limits
+                max_memory_usage: 80.0,   // Threshold for resource limits
             },
             optimization_history: Vec::new(),
         }

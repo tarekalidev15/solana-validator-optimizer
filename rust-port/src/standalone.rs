@@ -41,7 +41,7 @@ impl StandaloneOptimizer {
     /// Run the complete optimization process
     pub async fn optimize() -> Result<()> {
         println!("{}", "=== Solana Validator Optimizer (Rust) ===".cyan().bold());
-        println!("{}", "Real optimizations, real metrics, no simulations".yellow());
+        println!("{}", "Real optimizations with live blockchain metrics".yellow());
         println!();
         
         let mut optimizer = Self::new().await?;
@@ -348,12 +348,20 @@ impl StandaloneOptimizer {
         };
         
         if self.baseline_metrics.vote_success_rate == 0.0 {
-            println!("{}", "Validator is still syncing...".yellow());
-            println!("Once synced, you will see:");
-            println!("  • Vote Success: 85% → 97% (+14%)");
-            println!("  • Skip Rate: 12% → 3% (-75%)");
-            println!("  • Credits: +22% improvement");
-            println!("  • Vote Lag: -80% reduction");
+            println!("{}", "⚠ No baseline metrics yet".yellow());
+            println!();
+            println!("Waiting for validator to:");
+            println!("  • Complete initial sync");
+            println!("  • Start voting");
+            println!("  • Accumulate performance data");
+            println!();
+            println!("Once voting starts, you will see:");
+            println!("  • REAL vote success rate from blockchain");
+            println!("  • REAL skip rate measurements");
+            println!("  • REAL credits earned");
+            println!("  • REAL performance comparisons");
+            println!();
+            println!("{}", "All metrics from real blockchain data.".green().bold());
         } else {
             println!("Vote Success: {:.1}% → {:.1}% ({})",
                 self.baseline_metrics.vote_success_rate,

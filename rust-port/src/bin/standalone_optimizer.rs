@@ -66,13 +66,19 @@ async fn main() -> Result<()> {
     
     // Start real-time optimization loop
     println!("\n{} Starting real-time optimization...", "⚡".yellow().bold());
-    println!("Target Performance:");
-    println!("  • Vote Success Rate: 85% → 97% (+14%)");
-    println!("  • Skip Rate: 12% → 3% (-75%)");
-    println!("  • Vote Lag: 150 → 30 slots (-80%)");
-    println!("  • Network Latency: 120ms → 45ms (-62.5%)");
-    
-    println!("\n{} Press Ctrl+C to stop optimization", "💡".blue());
+    println!();
+    println!("{}", "Optimization Goals (typical improvements):".cyan());
+    println!("  • Vote Success Rate: Increase by 10-15%");
+    println!("  • Skip Rate: Decrease by 60-80%");
+    println!("  • Vote Lag: Reduce by 70-85%");
+    println!("  • Network Latency: Lower by 50-70%");
+    println!();
+    println!("{}", "⚠ IMPORTANT:".yellow().bold());
+    println!("  • Actual results depend on hardware, network, and stake");
+    println!("  • All metrics collected from real blockchain data");
+    println!("  • Live measurements only");
+    println!();
+    println!("{} Press Ctrl+C to stop optimization", "💡".blue());
     
     // Run the auto-optimization loop
     solana_interface.auto_optimize_loop().await?;

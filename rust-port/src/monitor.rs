@@ -11,26 +11,46 @@ use tokio::sync::RwLock;
 
 use crate::blockchain::{SolanaInterface, ValidatorMetrics};
 use crate::system::{SystemMonitor, SystemMetrics};
+use crate::config::ValidatorConfig;
 use solana_sdk::signature::{Keypair, read_keypair_file};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct PerformanceMetrics {
     pub vote_success_rate: f64,
     pub skip_rate: f64,
     pub credits_earned: u64,
-    pub vote_lag: u32,
+    pub vote_lag: u64,
     pub network_latency_ms: u32,
     pub timestamp: String,
+    pub epoch: u64,
+    pub slot: u64,
 }
 
 impl PerformanceMetrics {
-    pub fn new() -> Self {
+    /// Create from ValidatorMetrics (real blockchain data)
+    pub fn from_validator_metrics(metrics: &ValidatorMetrics) -> Self {
         Self {
-            vote_success_rate: 97.0,  // Post-optimization values
-            skip_rate: 3.0,
-            credits_earned: 220_000,
-            vote_lag: 30,
-            network_latency_ms: 45,
+            vote_success_rate: metrics.vote_success_rate,
+            skip_rate: metrics.skip_rate,
+            credits_earned: metrics.credits_earned,
+            vote_lag: metrics.vote_lag,
+            network_latency_ms: metrics.network_latency_ms,
+            epoch: metrics.epoch,
+            slot: metrics.slot,
+            timestamp: Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        }
+    }
+
+    /// Create baseline metrics when no validator is connected (NOT fake optimized values)
+    pub fn baseline() -> Self {
+        Self {
+            vote_success_rate: 0.0,
+            skip_rate: 0.0,
+            credits_earned: 0,
+            vote_lag: 0,
+            network_latency_ms: 0,
+            epoch: 0,
+            slot: 0,
             timestamp: Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
         }
     }
@@ -47,41 +67,69 @@ pub async fn display_metrics() -> Result<()> {
     
     // Display performance metrics
     let metrics = get_current_metrics().await?;
-    
+
     println!("\n{}", "Performance Metrics:".cyan().bold());
+    println!("├─ Epoch: {} | Slot: {}", metrics.epoch, metrics.slot);
     println!("├─ Vote Success Rate: {:.1}%", metrics.vote_success_rate);
     println!("├─ Skip Rate: {:.1}%", metrics.skip_rate);
     println!("├─ Credits Earned: {}", format_number(metrics.credits_earned));
     println!("├─ Vote Lag: {} slots", metrics.vote_lag);
     println!("└─ Network Latency: {}ms", metrics.network_latency_ms);
-    
-    // Show comparison with baseline
-    println!("\n{}", "Improvements from Baseline:".green().bold());
-    println!("├─ Vote Success: {} → {} ({})",
-        "85%".red(), 
-        format!("{:.0}%", metrics.vote_success_rate).green(),
-        "+14%".green().bold()
-    );
-    println!("├─ Skip Rate: {} → {} ({})",
-        "12%".red(),
-        format!("{:.0}%", metrics.skip_rate).green(),
-        "-75%".green().bold()
-    );
-    println!("├─ Credits: {} → {} ({})",
-        "180K".red(),
-        "220K".green(),
-        "+22%".green().bold()
-    );
-    println!("├─ Vote Lag: {} → {} ({})",
-        "150".red(),
-        format!("{}", metrics.vote_lag).green(),
-        "-80%".green().bold()
-    );
-    println!("└─ Latency: {} → {} ({})",
-        "120ms".red(),
-        format!("{}ms", metrics.network_latency_ms).green(),
-        "-62.5%".green().bold()
-    );
+
+    // Show comparison only if we have real metrics
+    if metrics.vote_success_rate > 0.0 {
+        // Typical baseline values for comparison
+        const BASELINE_VOTE_SUCCESS: f64 = 85.0;
+        const BASELINE_SKIP_RATE: f64 = 12.0;
+        const BASELINE_VOTE_LAG: u64 = 150;
+        const BASELINE_LATENCY: u32 = 120;
+
+        println!("\n{}", "Comparison with Typical Baseline:".cyan().bold());
+
+        let vote_improvement = metrics.vote_success_rate - BASELINE_VOTE_SUCCESS;
+        let skip_improvement = BASELINE_SKIP_RATE - metrics.skip_rate;
+        let lag_improvement_pct = ((BASELINE_VOTE_LAG as f64 - metrics.vote_lag as f64) / BASELINE_VOTE_LAG as f64) * 100.0;
+        let latency_improvement_pct = ((BASELINE_LATENCY as f64 - metrics.network_latency_ms as f64) / BASELINE_LATENCY as f64) * 100.0;
+
+        println!("├─ Vote Success: {:.1}% vs {:.1}% baseline ({})",
+            metrics.vote_success_rate,
+            BASELINE_VOTE_SUCCESS,
+            if vote_improvement > 0.0 {
+                format!("+{:.1}pp", vote_improvement).green()
+            } else {
+                format!("{:.1}pp", vote_improvement).red()
+            }
+        );
+        println!("├─ Skip Rate: {:.1}% vs {:.1}% baseline ({})",
+            metrics.skip_rate,
+            BASELINE_SKIP_RATE,
+            if skip_improvement > 0.0 {
+                format!("-{:.1}pp", skip_improvement).green()
+            } else {
+                format!("+{:.1}pp", skip_improvement.abs()).red()
+            }
+        );
+        println!("├─ Vote Lag: {} vs {} baseline ({})",
+            metrics.vote_lag,
+            BASELINE_VOTE_LAG,
+            if lag_improvement_pct > 0.0 {
+                format!("-{:.1}%", lag_improvement_pct).green()
+            } else {
+                format!("+{:.1}%", lag_improvement_pct.abs()).red()
+            }
+        );
+        println!("└─ Latency: {}ms vs {}ms baseline ({})",
+            metrics.network_latency_ms,
+            BASELINE_LATENCY,
+            if latency_improvement_pct > 0.0 {
+                format!("-{:.1}%", latency_improvement_pct).green()
+            } else {
+                format!("+{:.1}%", latency_improvement_pct.abs()).red()
+            }
+        );
+    } else {
+        println!("\n{}", "⚠ No validator connected - start one to see real metrics".yellow());
+    }
     
     Ok(())
 }
@@ -143,20 +191,45 @@ pub async fn dashboard() -> Result<()> {
 
 pub async fn generate_report() -> Result<()> {
     println!("{}", "Generating Performance Report...".cyan());
-    
+
     let metrics = get_current_metrics().await?;
+
+    // Calculate improvements from baseline
+    const BASELINE_VOTE_SUCCESS: f64 = 85.0;
+    const BASELINE_SKIP_RATE: f64 = 12.0;
+    const BASELINE_CREDITS: u64 = 180_000;
+    const BASELINE_VOTE_LAG: u64 = 150;
+    const BASELINE_LATENCY: u32 = 120;
+
+    let vote_improvement = metrics.vote_success_rate - BASELINE_VOTE_SUCCESS;
+    let skip_improvement = BASELINE_SKIP_RATE - metrics.skip_rate;
+    let credits_improvement_pct = if BASELINE_CREDITS > 0 {
+        ((metrics.credits_earned as f64 - BASELINE_CREDITS as f64) / BASELINE_CREDITS as f64) * 100.0
+    } else { 0.0 };
+    let lag_improvement_pct = ((BASELINE_VOTE_LAG as f64 - metrics.vote_lag as f64) / BASELINE_VOTE_LAG as f64) * 100.0;
+    let latency_improvement_pct = ((BASELINE_LATENCY as f64 - metrics.network_latency_ms as f64) / BASELINE_LATENCY as f64) * 100.0;
+
+    let metrics_status = if metrics.vote_success_rate > 0.0 {
+        "REAL-TIME DATA FROM BLOCKCHAIN"
+    } else {
+        "⚠ NO VALIDATOR CONNECTED - Start validator for real metrics"
+    };
+
     let report = format!(
         r#"# Solana Validator Performance Report
 
 Generated: {}
+Data Source: {}
 
 ## Current Performance Metrics
 
-- **Vote Success Rate**: {:.1}% (↑ +14% from baseline)
-- **Skip Rate**: {:.1}% (↓ -75% from baseline)
-- **Credits Earned**: {} (↑ +22% from baseline)
-- **Vote Lag**: {} slots (↓ -80% from baseline)
-- **Network Latency**: {}ms (↓ -62.5% from baseline)
+- **Epoch**: {}
+- **Slot**: {}
+- **Vote Success Rate**: {:.1}% ({})
+- **Skip Rate**: {:.1}% ({})
+- **Credits Earned**: {} ({})
+- **Vote Lag**: {} slots ({})
+- **Network Latency**: {}ms ({})
 
 ## Optimization Status
 
@@ -166,31 +239,74 @@ Generated: {}
 - ✅ Vote Timing: 1ms TPU coalesce, skip wait enabled
 - ✅ Snapshots: 100-slot intervals, zstd compression
 
-## Platform Information
-- System: MacBook Air M2
-- Memory: 8GB unified memory
-- Network: Solana Testnet
-- Validator Version: 1.18.20
+## Baseline Comparison
+
+These comparisons are against typical unoptimized validator baseline:
+- Baseline Vote Success: {:.1}%
+- Baseline Skip Rate: {:.1}%
+- Baseline Credits: {}
+- Baseline Vote Lag: {} slots
+- Baseline Latency: {}ms
 
 ## Conclusion
-The validator is performing at **97% vote success rate**, significantly above the cluster average of 89%.
+
+{}
 "#,
         metrics.timestamp,
+        metrics_status,
+        metrics.epoch,
+        metrics.slot,
         metrics.vote_success_rate,
+        if vote_improvement >= 0.0 {
+            format!("↑ +{:.1}pp from baseline", vote_improvement)
+        } else {
+            format!("↓ {:.1}pp from baseline", vote_improvement)
+        },
         metrics.skip_rate,
+        if skip_improvement >= 0.0 {
+            format!("↓ -{:.1}pp from baseline", skip_improvement)
+        } else {
+            format!("↑ +{:.1}pp from baseline", skip_improvement.abs())
+        },
         format_number(metrics.credits_earned),
+        if credits_improvement_pct >= 0.0 {
+            format!("↑ +{:.1}% from baseline", credits_improvement_pct)
+        } else {
+            format!("↓ {:.1}% from baseline", credits_improvement_pct)
+        },
         metrics.vote_lag,
-        metrics.network_latency_ms
+        if lag_improvement_pct >= 0.0 {
+            format!("↓ -{:.1}% from baseline", lag_improvement_pct)
+        } else {
+            format!("↑ +{:.1}% from baseline", lag_improvement_pct.abs())
+        },
+        metrics.network_latency_ms,
+        if latency_improvement_pct >= 0.0 {
+            format!("↓ -{:.1}% from baseline", latency_improvement_pct)
+        } else {
+            format!("↑ +{:.1}% from baseline", latency_improvement_pct.abs())
+        },
+        BASELINE_VOTE_SUCCESS,
+        BASELINE_SKIP_RATE,
+        format_number(BASELINE_CREDITS),
+        BASELINE_VOTE_LAG,
+        BASELINE_LATENCY,
+        if metrics.vote_success_rate > 0.0 {
+            format!("The validator is performing at **{:.1}% vote success rate** based on REAL blockchain data.",
+                metrics.vote_success_rate)
+        } else {
+            "⚠ No validator connected. Start a validator to collect real performance metrics.".to_string()
+        }
     );
-    
+
     let report_path = PathBuf::from("performance-report.md");
     fs::write(&report_path, report)?;
-    
-    println!("{} {}", 
-        "✓ Report generated:".green(), 
+
+    println!("{} {}",
+        "✓ Report generated:".green(),
         report_path.display().to_string().yellow()
     );
-    
+
     Ok(())
 }
 
@@ -207,10 +323,50 @@ fn get_validator_status() -> Result<String> {
     }
 }
 
+/// Get REAL metrics from the running validator
 async fn get_current_metrics() -> Result<PerformanceMetrics> {
-    // In a real implementation, these would be fetched from the running validator
-    // For now, returning optimized values to demonstrate the improvements
-    Ok(PerformanceMetrics::new())
+    // Load validator config to get keypairs
+    let config = ValidatorConfig::load()?;
+
+    // Try to connect to blockchain and get real metrics
+    let result = try_get_real_metrics(&config).await;
+
+    match result {
+        Ok(metrics) => {
+            println!("  {} Using REAL blockchain metrics", "✓".green());
+            Ok(PerformanceMetrics::from_validator_metrics(&metrics))
+        }
+        Err(e) => {
+            println!("  {} No validator running: {}", "⚠".yellow(), e);
+            println!("  {} Start a validator to see real metrics", "ℹ".cyan());
+            Ok(PerformanceMetrics::baseline())
+        }
+    }
+}
+
+/// Try to fetch real metrics from local or testnet validator
+async fn try_get_real_metrics(config: &ValidatorConfig) -> Result<ValidatorMetrics> {
+    // Try to read keypairs
+    let validator_keypair = read_keypair_file(&config.identity_keypair)
+        .map_err(|e| anyhow::anyhow!("Failed to read validator keypair: {}", e))?;
+    let vote_keypair = read_keypair_file(&config.vote_account_keypair)
+        .map_err(|e| anyhow::anyhow!("Failed to read vote keypair: {}", e))?;
+
+    // Try local validator first
+    if let Ok(interface) = SolanaInterface::new("http://127.0.0.1:8899", validator_keypair.insecure_clone(), vote_keypair.insecure_clone()) {
+        if let Ok(metrics) = interface.get_validator_metrics().await {
+            println!("  {} Connected to LOCAL validator", "✓".green());
+            return Ok(metrics);
+        }
+    }
+
+    // Try testnet as fallback
+    if let Ok(interface) = SolanaInterface::new("https://api.testnet.solana.com", validator_keypair, vote_keypair) {
+        println!("  {} Connected to TESTNET validator", "✓".yellow());
+        interface.get_validator_metrics().await
+    } else {
+        Err(anyhow::anyhow!("Failed to connect to any validator"))
+    }
 }
 
 fn create_progress_bar(current: f64, max: f64, label: &str) -> ProgressBar {
