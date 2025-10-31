@@ -1,0 +1,84 @@
+# Solana Validator Files
+*.json
+validator-keypair.json
+vote-account-keypair.json
+stake-account-keypair.json
+
+# Directories
+ledger/
+accounts/
+snapshots/
+logs/
+
+# Temporary files
+*.log
+*.out
+*.pid
+*.tmp
+
+# System files
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Build artifacts
+*.o
+*.so
+*.a
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment
+.env
+.env.local
+
+# Backups
+*.bak
+*.backup
+
+# Rust build artifacts and dependencies
+target/
+Cargo.lock
+**/*.rs.bk
+rust-port/target/
+rust-port/Cargo.lock
+
+# Rust build cache and incremental compilation
+rust-port/target/debug/
+rust-port/target/release/
+rust-port/target/debug/incremental/
+rust-port/target/release/incremental/
+
+# Rust documentation
+rust-port/target/doc/
+
+# Rust examples (keep if needed, otherwise ignore)
+# rust-port/examples/
+
+# Rust benchmarking
+rust-port/target/criterion/
+
+# Rust coverage
+rust-port/target/coverage/
+
+# Rust fuzzing
+rust-port/target/corpus/
+rust-port/target/artifacts/
+
+# Backup files
+*.orig
+*.rej
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini

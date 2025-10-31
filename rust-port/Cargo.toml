@@ -1,0 +1,68 @@
+[package]
+name = "solana-validator-optimizer-rs"
+version = "0.1.0"
+edition = "2021"
+authors = ["Tarek Ali"]
+description = "Rust implementation of Solana Validator Optimizer for maximizing vote success rate"
+
+# Binaries
+[[bin]]
+name = "solana-validator-optimizer"
+path = "src/main.rs"
+
+[[bin]]
+name = "standalone-optimizer"
+path = "src/bin/standalone_optimizer.rs"
+
+[[bin]]
+name = "test-connection"
+path = "src/bin/test_connection.rs"
+
+[dependencies]
+# CLI and async
+clap = { version = "4.4", features = ["derive"] }
+tokio = { version = "1.35", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bincode = "1.3"
+
+# UI and display
+colored = "2.1"
+indicatif = "0.17"
+crossterm = "0.27"
+tui = "0.19"
+
+# System monitoring
+sysinfo = "0.30"
+libc = "0.2"
+nix = { version = "0.27", features = ["process", "signal", "fs", "resource"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Utilities
+chrono = "0.4"
+once_cell = "1.19"
+bytes = "1.5"
+hex = "0.4"
+
+# Networking
+reqwest = { version = "0.11", features = ["json"] }
+quinn = "0.10"  # QUIC protocol
+socket2 = { version = "0.5", features = ["all"] }
+
+# Solana SDK for direct blockchain interaction
+solana-sdk = "1.18"
+solana-client = "1.18"
+solana-transaction-status = "1.18"
+solana-rpc-client = "1.18"
+solana-rpc-client-api = "1.18"
+solana-vote-program = "1.18"
+
+# Performance optimization
+rayon = "1.8"
+dashmap = "5.5"
+parking_lot = "0.12"
