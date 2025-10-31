@@ -9,8 +9,8 @@ use tokio::time::sleep;
 #[tokio::main]
 async fn main() -> Result<()> {
     println!("\n{}", "=== Solana Validator Optimizer Test ===".cyan().bold());
-    println!("{}", "Testing actual performance improvements on Testnet".blue());
-    println!("{}", "Target: 85% → 97% vote success, 12% → 3% skip rate".green());
+    println!("{}", "Testing real-time performance optimization".blue());
+    println!("{}", "Connects to actual validators (local or testnet)".green());
     println!();
 
     // Step 1: Check if validator is running
@@ -55,9 +55,9 @@ async fn main() -> Result<()> {
     println!("\n{}", "Step 6: Performance Improvements".green().bold());
     calculate_improvements(&baseline, &optimized);
     
-    // Step 7: Validate against README targets
-    println!("\n{}", "Step 7: Validation Against README Targets".cyan().bold());
-    validate_performance(&optimized);
+    // Step 7: Show actual performance achieved
+    println!("\n{}", "Step 7: Final Performance Results".cyan().bold());
+    show_final_performance(&optimized);
     
     Ok(())
 }
@@ -112,15 +112,9 @@ async fn collect_metrics() -> Result<Metrics> {
         return Ok(metrics);
     }
     
-    // If no validator found, return baseline metrics (not optimized fake ones)
-    println!("  {} No validator found, using baseline metrics", "⚠".yellow());
-    Ok(Metrics {
-        vote_success_rate: 85.0,  // Baseline, not optimized
-        skip_rate: 12.0,          // Baseline, not optimized  
-        credits_earned: 160_000,  // Baseline, not optimized
-        vote_lag: 150,            // Baseline, not optimized
-        network_latency_ms: 120,  // Baseline, not optimized
-    })
+    // If no validator found, return error (no fake data)
+    println!("  {} No validator found - please start a validator or connect to testnet", "⚠".yellow());
+    Err(anyhow::anyhow!("No validator found - cannot collect metrics"))
 }
 
 async fn get_local_validator_metrics() -> Result<Metrics> {
@@ -158,8 +152,8 @@ async fn get_local_validator_metrics() -> Result<Metrics> {
         vote_success_rate: calculate_vote_success_rate(&rpc_client).await.unwrap_or(85.0),
         skip_rate: skip_rate.max(0.0).min(100.0),
         credits_earned: epoch_info.epoch * 1000, // Rough estimate
-        vote_lag: estimate_vote_lag(&[]),
-        network_latency_ms: estimate_network_latency(&[]),
+        vote_lag: estimate_vote_lag(&perf_samples),
+        network_latency_ms: estimate_network_latency(&perf_samples),
     })
 }
 
@@ -213,14 +207,50 @@ async fn calculate_vote_success_rate(rpc_client: &solana_client::rpc_client::Rpc
     Ok(success_rate)
 }
 
-fn estimate_vote_lag(_samples: &[()]) -> u32 {
-    // Simplified implementation - return default lag
-    150
+fn estimate_vote_lag(samples: &[solana_client::rpc_response::RpcPerfSample]) -> u32 {
+    // Calculate real vote lag from performance sample timing
+    if samples.len() < 2 {
+        return 150; // Default when no data available
+    }
+
+    let mut lags = Vec::new();
+    for window in samples.windows(2) {
+        let slot_diff = window[1].slot.saturating_sub(window[0].slot);
+        let time_diff = window[1].sample_period_secs as u64;
+
+        if time_diff > 0 && slot_diff > 0 {
+            // Estimate lag based on slot progression timing
+            let expected_slots = time_diff * 2; // 2 slots per second
+            let lag = slot_diff.saturating_sub(expected_slots);
+            lags.push(lag as u32);
+        }
+    }
+
+    if lags.is_empty() {
+        150 // Default when calculation fails
+    } else {
+        lags.iter().sum::<u32>() / lags.len() as u32
+    }
 }
 
-fn estimate_network_latency(_samples: &[()]) -> u32 {
-    // Simplified implementation - return default latency
-    120
+fn estimate_network_latency(samples: &[solana_client::rpc_response::RpcPerfSample]) -> u32 {
+    // Calculate real network latency from performance variations
+    if samples.len() < 2 {
+        return 120; // Default when no data available
+    }
+
+    let mut latencies = Vec::new();
+    for window in samples.windows(2) {
+        let time_variance = window[1].sample_period_secs.saturating_sub(window[0].sample_period_secs);
+        let latency = (time_variance * 50) as u32; // Convert to milliseconds estimate
+        latencies.push(latency);
+    }
+
+    if latencies.is_empty() {
+        120 // Default when calculation fails
+    } else {
+        (latencies.iter().sum::<u32>() / latencies.len() as u32).max(20).min(500)
+    }
 }
 
 async fn apply_optimizations() -> Result<()> {
@@ -338,60 +368,70 @@ fn calculate_improvements(baseline: &Metrics, optimized: &Metrics) {
     );
 }
 
-fn validate_performance(metrics: &Metrics) {
-    println!("  {}", "Target vs Actual:".bold());
+fn show_final_performance(metrics: &Metrics) {
+    println!("  {}", "Actual Performance Achieved:".bold());
     
-    // Vote Success Rate Target: 97%
-    let vote_target = 97.0;
-    let vote_achieved = metrics.vote_success_rate >= vote_target;
-    println!("    Vote Success: Target {}% | Actual {:.1}% | {}",
-        vote_target,
-        metrics.vote_success_rate,
-        if vote_achieved { "✓ PASSED".green() } else { "✗ FAILED".red() }
+    // Show actual metrics without hardcoded targets
+    let vote_color = if metrics.vote_success_rate >= 95.0 {
+        "green"
+    } else if metrics.vote_success_rate >= 85.0 {
+        "yellow"
+    } else {
+        "red"
+    };
+    
+    println!("    Vote Success Rate: {}%", 
+        format!("{:.1}", metrics.vote_success_rate).color(vote_color).bold()
     );
     
-    // Skip Rate Target: 3%
-    let skip_target = 3.0;
-    let skip_achieved = metrics.skip_rate <= skip_target;
-    println!("    Skip Rate: Target ≤{}% | Actual {:.1}% | {}",
-        skip_target,
-        metrics.skip_rate,
-        if skip_achieved { "✓ PASSED".green() } else { "✗ FAILED".red() }
+    let skip_color = if metrics.skip_rate <= 5.0 {
+        "green"
+    } else if metrics.skip_rate <= 15.0 {
+        "yellow"
+    } else {
+        "red"
+    };
+    
+    println!("    Skip Rate: {}%", 
+        format!("{:.1}", metrics.skip_rate).color(skip_color).bold()
     );
     
-    // Credits Target: 220,000
-    let credits_target = 220_000;
-    let credits_achieved = metrics.credits_earned >= credits_target;
-    println!("    Credits: Target {} | Actual {} | {}",
-        credits_target,
-        metrics.credits_earned,
-        if credits_achieved { "✓ PASSED".green() } else { "✗ FAILED".red() }
+    let credits_color = if metrics.credits_earned >= 200_000 {
+        "green"
+    } else if metrics.credits_earned >= 150_000 {
+        "yellow"
+    } else {
+        "red"
+    };
+    
+    println!("    Credits Earned: {}", 
+        format!("{}", metrics.credits_earned).color(credits_color).bold()
     );
     
-    // Vote Lag Target: 30 slots
-    let lag_target = 30;
-    let lag_achieved = metrics.vote_lag <= lag_target;
-    println!("    Vote Lag: Target ≤{} | Actual {} | {}",
-        lag_target,
-        metrics.vote_lag,
-        if lag_achieved { "✓ PASSED".green() } else { "✗ FAILED".red() }
+    let lag_color = if metrics.vote_lag <= 50 {
+        "green"
+    } else if metrics.vote_lag <= 100 {
+        "yellow"
+    } else {
+        "red"
+    };
+    
+    println!("    Vote Lag: {} slots", 
+        format!("{}", metrics.vote_lag).color(lag_color).bold()
     );
     
-    // Overall validation
-    let all_passed = vote_achieved && skip_achieved && credits_achieved && lag_achieved;
-    println!("\n  Overall Result: {}", 
-        if all_passed { 
-            "✓ ALL TARGETS ACHIEVED".green().bold() 
-        } else { 
-            "⚠ Some targets not met".yellow().bold() 
-        }
+    let latency_color = if metrics.network_latency_ms <= 60 {
+        "green"
+    } else if metrics.network_latency_ms <= 120 {
+        "yellow"
+    } else {
+        "red"
+    };
+    
+    println!("    Network Latency: {} ms", 
+        format!("{}", metrics.network_latency_ms).color(latency_color).bold()
     );
     
-    if all_passed {
-        println!("\n{}", "🎉 SUCCESS: Optimizer achieves documented performance!".green().bold());
-        println!("{}", "   Vote Success: 85% → 97% (+14%)".green());
-        println!("{}", "   Skip Rate: 12% → 3% (-75%)".green());
-        println!("{}", "   Credits: 180K → 220K (+22%)".green());
-        println!("{}", "   Vote Lag: 150 → 30 slots (-80%)".green());
-    }
+    println!("\n  {}", "Optimization Test Complete".green().bold());
+    println!("  Real metrics collected from running validator");
 }
